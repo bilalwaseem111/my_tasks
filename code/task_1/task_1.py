@@ -1,17 +1,15 @@
 import streamlit as st  # type: ignore
 import pandas as pd     # type: ignore
 import random
+import os
 
 # 🎨 Custom CSS Styling
+
 st.markdown("""
     <style>
     @keyframes bounce {
-        0%, 100% {
-            transform: translateY(0);
-        }
-        50% {
-            transform: translateY(-20px);
-        }
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-20px); }
     }
 
     @keyframes gradientShift {
@@ -57,6 +55,13 @@ st.markdown("""
         border-radius: 8px !important;
         font-weight: bold !important;
         padding: 10px 20px !important;
+        margin: 10px !important;
+        transition: background-color 0.3s ease, transform 0.2s ease;
+    }
+
+    .button:hover {
+        background-color: #45a049 !important;
+        transform: scale(1.05);
     }
 
     .footer {
@@ -75,102 +80,163 @@ st.markdown("""
         height: 35px;
         transition: transform 0.3s ease, box-shadow 0.3s ease;
         cursor: pointer;
+        animation: glow 2s infinite;
     }
 
-    .linkedin-logo:hover {
-        transform: scale(0.3);
-        box-shadow: 30 30 10px #0077b5;
+    @keyframes glow {
+        0% { box-shadow: 0 0 5px #0077b5; }
+        50% { box-shadow: 0 0 20px #0077b5; }
+        100% { box-shadow: 0 0 5px #0077b5; }
     }
+
+    .home-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        margin-top: 50px;
+    }
+
     </style>
 """, unsafe_allow_html=True)
 
-# 🎉 Bouncing Animated App Title
+
+# 🎓 Bouncing Animated App Title
+
 st.markdown("<h1>🎓 Flashcard Quiz App</h1>", unsafe_allow_html=True)
 
-# Initialize Session State
-if 'flashcards' not in st.session_state:
-    st.session_state.flashcards = []
 
+# 📂 Load or Initialize Flashcards
+
+FLASHCARDS_FILE = "flashcards.csv"
+
+def load_flashcards():
+    if os.path.exists(FLASHCARDS_FILE):
+        return pd.read_csv(FLASHCARDS_FILE).to_dict(orient='records')
+    return []
+
+def save_flashcards(flashcards):
+    df = pd.DataFrame(flashcards)
+    df.to_csv(FLASHCARDS_FILE, index=False)
+
+# Initialize flashcards
+if 'flashcards' not in st.session_state:
+    st.session_state.flashcards = load_flashcards()
+
+# Initialize other states
 if 'quiz_index' not in st.session_state:
     st.session_state.quiz_index = 0
-
 if 'score' not in st.session_state:
     st.session_state.score = 0
-
 if 'quiz_active' not in st.session_state:
     st.session_state.quiz_active = False
 
-# 🗂️ Menu Selection
-menu = st.sidebar.radio("Menu", ("Add Flashcards!!!!", "📝 Take Quiz", "📊 View Flashcards"))
+# ===========================
+# 🏠 Home Page with Navigation Buttons
+# ===========================
+st.markdown("<h2>Welcome to the Ultimate Flashcard Quiz Experience!</h2>", unsafe_allow_html=True)
+st.markdown("<h3>Boost your knowledge. Challenge yourself. Have fun!</h3>", unsafe_allow_html=True)
 
-# ➕ Add Flashcards
-if menu == "➕ Add Flashcards":
+st.markdown("<div class='home-container'>", unsafe_allow_html=True)
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    if st.button("➕ Add Flashcards", key="add", use_container_width=True):
+        st.session_state.menu_selection = "add"
+
+with col2:
+    if st.button("📝 Take Quiz", key="quiz", use_container_width=True):
+        st.session_state.menu_selection = "quiz"
+        st.session_state.quiz_index = 0
+        st.session_state.score = 0
+        st.session_state.quiz_active = True
+
+with col3:
+    if st.button("📊 View Flashcards", key="view", use_container_width=True):
+        st.session_state.menu_selection = "view"
+
+st.markdown("</div>", unsafe_allow_html=True)
+
+# ===========================
+# 🚀 Menu Logic
+# ===========================
+menu = st.session_state.get("menu_selection", "home")
+
+# ➕ Add Flashcards Page
+if menu == "add":
     st.header("➕ Add a New Flashcard")
-    with st.form(key='add_flashcard'):
-        question = st.text_input("Question")
-        answer = st.text_input("Answer")
-        submit = st.form_submit_button("Add Flashcard")
+    with st.form(key='add_flashcard_form'):
+        question = st.text_input("Enter your Question")
+        answer = st.text_input("Enter the Answer")
+        submit = st.form_submit_button("Add Flashcard", type="primary")
         if submit:
             if question and answer:
                 st.session_state.flashcards.append({'question': question, 'answer': answer})
+                save_flashcards(st.session_state.flashcards)
                 st.success("✅ Flashcard Added!")
-                st.balloons()  # Animation
+                st.balloons()
             else:
-                st.error("⚠️ Please fill both fields.")
+                st.error("⚠️ Both fields are required.")
 
-# 📊 View Flashcards
-elif menu == "📊 View Flashcards":
+# 📊 View Flashcards Page
+if menu == "view":
     st.header("📚 Your Flashcards")
     if st.session_state.flashcards:
-        for idx, card in enumerate(st.session_state.flashcards):
-            with st.expander(f"Flashcard {idx + 1}"):
-                st.markdown(f"<div class='flashcard'><strong>Q:</strong> {card['question']}<br><strong>A:</strong> {card['answer']}</div>", unsafe_allow_html=True)
+        df_flashcards = pd.DataFrame(st.session_state.flashcards)
+        st.dataframe(df_flashcards, use_container_width=True)
     else:
-        st.info("No flashcards found! Add some first.")
+        st.warning("⚠️ No flashcards available. Add some first!")
 
-# 📝 Take Quiz
-elif menu == "📝 Take Quiz":
-    st.header("📝 Quiz Yourself!")
+# 📝 Take Quiz Page - ALL QUESTIONS AT ONCE!
+if menu == "quiz":
+    st.header("📝 Flashcard Quiz")
+
     if not st.session_state.flashcards:
-        st.warning("⚠️ You need to add flashcards before taking a quiz.")
+        st.warning("⚠️ No flashcards to quiz! Add some first.")
     else:
-        if not st.session_state.quiz_active:
-            st.session_state.quiz_flashcards = st.session_state.flashcards.copy()
-            random.shuffle(st.session_state.quiz_flashcards)
-            st.session_state.quiz_index = 0
-            st.session_state.score = 0
-            st.session_state.quiz_active = True
-            st.experimental_rerun()
+        st.info("Answer all questions below and click **Submit Answers** to see your score!")
 
-        if st.session_state.quiz_index < len(st.session_state.quiz_flashcards):
-            current_card = st.session_state.quiz_flashcards[st.session_state.quiz_index]
-            st.subheader(f"Question {st.session_state.quiz_index + 1} of {len(st.session_state.quiz_flashcards)}")
-            st.markdown(f"<div class='flashcard'><strong>Q:</strong> {current_card['question']}</div>", unsafe_allow_html=True)
+        # Dictionary to hold user answers
+        user_answers = {}
 
-            user_answer = st.text_input("Your Answer")
+        # Generate input fields for each question
+        for idx, card in enumerate(st.session_state.flashcards):
+            st.subheader(f"Question {idx + 1}: {card['question']}")
+            answer_key = f"user_answer_{idx}"
+            user_answers[answer_key] = st.text_input("Your Answer:", key=answer_key)
 
-            if st.button("Submit Answer", key=st.session_state.quiz_index):
-                if user_answer.strip().lower() == current_card['answer'].strip().lower():
-                    st.success("✅ Correct!")
-                    st.session_state.score += 1
-                    st.snow()  # Animation
-                else:
-                    st.error(f"❌ Incorrect! The correct answer was: {current_card['answer']}")
-                st.session_state.quiz_index += 1
-                st.experimental_rerun()
+        # Submit button to evaluate all answers
+        if st.button("✅ Submit Answers"):
+            score = 0
+            total = len(st.session_state.flashcards)
 
-        else:
-            st.success(f"🎉 Quiz Completed! Your Score: {st.session_state.score}/{len(st.session_state.quiz_flashcards)}")
-            if st.session_state.score == len(st.session_state.quiz_flashcards):
-                st.balloons()  # Celebration Animation
-            st.session_state.quiz_active = False
+            # Evaluate answers
+            for idx, card in enumerate(st.session_state.flashcards):
+                correct_answer = card['answer'].strip().lower()
+                user_answer = user_answers[f"user_answer_{idx}"].strip().lower()
 
-# 🎨 Footer with LinkedIn Logo
+                if user_answer == correct_answer:
+                    score += 1
+
+            # Show result
+            st.success(f"🎉 You got {score} out of {total} correct!")
+            st.balloons()
+
+            # Optional: Show correct answers for review
+            with st.expander("🔍 See Correct Answers"):
+                for idx, card in enumerate(st.session_state.flashcards):
+                    st.write(f"✅ {idx + 1}. {card['question']}")
+                    st.write(f"   Correct Answer: **{card['answer']}**")
+
+
+
+# 📝 Footer:
 st.markdown("""
-    <div class='footer'>
-        <span>Made by Bilal Waseem</span>
-        <a href='https://www.linkedin.com/in/bilal-waseem-b44006338' target='_blank'>
-            <img src='https://cdn-icons-png.flaticon.com/512/174/174857.png' alt='LinkedIn' class='linkedin-logo'>
+    <div class="footer">
+        <p>Made by <strong>Bilal Waseem</strong></p>
+        <a href="https://www.linkedin.com/in/bilal-waseem-b44006338" target="_blank">
+            <img src="https://cdn-icons-png.flaticon.com/512/174/174857.png" class="linkedin-logo">
         </a>
     </div>
 """, unsafe_allow_html=True)
